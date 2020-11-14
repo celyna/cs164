@@ -50,7 +50,7 @@ except socket.error:
   sys.exit() 
 
 while 1: 
-  msg = raw_input('Enter message to send : jk hardcoded so it doesnt matter ')
+  msg = raw_input('hardcoded values ')
   msg = msgList[count]
   old_msg = msg 
   count+=1
