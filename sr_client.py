@@ -1,85 +1,87 @@
-import socket
-import sys
+import socket 
+import sys 
+import select
 from check import ip_checksum
+import time
 
-# Datagram (udp) socket
-try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-except socket.error:
-    print 'Failed to create socket'
-    sys.exit()
+def enum(**enums): 
+  return type('Enum', (), enums) 
+pkt_status = enum(NULL=0, READY=1, SENT=2, ACKED=3)
 
-host = '';
-port = 2401;
+class pkt_struct: 
+  def __init__(self, num, msg): 
+    self.status = pkt_status.NULL
+    self.num = num 
+    self.msg = msg 
+    self.time_sent = None
+  def send_pkt(self, s): 
+    s.sendto(self.msg, (HOST, PORT))
+    self.time_sent = time.time()
 
-# set up window size, base, and sequence value
-windowSize = 5
-base = 1
-nextseqnum = 1
+#initializing 
+pkt_list = list() #used as list of packets that havent been sent
 
-# set up the packet list, size 10
-pktList = []
-n = 1
-pktList.append(0)
-while(n < 11) :
-    pktList.append(n)
-    n = n + 1
+HOST = 'localhost'
+PORT = 2155
+BASE = 1      #base for window
+PKT = 1       #packet number
+N = 4        #window size
+TIMEOUT = 10  #timeout time
 
-old_msg = ''
-resend = 0
-count = 0 
-pktRecvd = [] #holds failed packets
-while 1:
-    if nextseqnum > 9 :
-        break
-    msg = str(pktList[nextseqnum])
-    try :
-        # timeout
-        s.settimeout(2)
-        if msg == '4':
-            if count == 0:
-                # break the checksum intentionally
-                d = ip_checksum(msg + '1')
-                msg_d = d + msg
-                msg_seq_d = str(nextseqnum) + msg_d
-                count = count + 1
-            else:
-                d = ip_checksum(msg)
-                msg_d = d + msg
-                msg_seq_d = str(nextseqnum) + msg_d
-        else :
-            d = ip_checksum(msg)
-            msg_d = d + msg
-            msg_seq_d = str(nextseqnum) + msg_d
-       
-        if nextseqnum < base + windowSize :
-            print 'Sending... PKT' + msg_seq_d[3:]
-            s.sendto(msg_seq_d, (host, port))
-            nextseqnum = nextseqnum + 1
-        
-        # receive data back from server for ACK
-        try:
-            data = s.recvfrom(1024)
-            reply = data[0]
-            addr = data[1]
-            # if error reply received, append the nextseqnum
-            if int(reply) == 404:
-                pktRecvd.append(nextseqnum)
-        except :
-            print 'Timeout.'
-            # resend packets that were not successful
-            for i in pktRecvd:
-                msg = str(pktList[i-1])
-                d = ip_checksum(msg)
-                msg_d = d + msg
-                msg_seq_d = str(i-1)+msg_d
-                print 'Resending... PKT' + msg_seq_d[3:]
-                s.sendto(msg_seq_d, (host,port))
-            del pktRecvd[:]
-            base = nextseqnum
-            continue
+try: 
+  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+except socket.error:    
+  print 'Failed to create socket' 
+  sys.exit() 
+
+while 1: 
+  msg = raw_input('Enter message to send : ')
+  checksum = ip_checksum(msg)     #get checksum of message
+  msg = str(PKT).zfill(3) + str(checksum) + msg   #new message: 00PKT+CHKSM+MSG
+  pkt_curr = pkt_struct(PKT, msg)   #current: packet with packet number and msg
+  pkt_list.append(pkt_curr)         #add current packet to list of packets
+  PKT += 1    #increment packet number
+
+  #try to send packet
+  try:
+    if (pkt_curr.num < BASE + N):     #not sending packets outside of window
+      pkt_curr.send_pkt(s) 
+      #s.sendto(pkt_curr.msg, (HOST, PORT))  # send message to host:port
+      #pkt_curr.time_sent = time.time()    #set time sent
+
+    inputs = [s]
+    outputs = [] 
+    timeout = 1
+    readable, writeable, exceptional = select.select(inputs, outputs, inputs, timeout)
+    d = ''
+    for tempSocket in readable: 
+      d = tempSocket.recvfrom(1024)
+
+      reply = d[0] 
+      addr = d[1] 
+      print 'Server reply : ' + reply 
+    if d == '':
+      continue    #Keep going until server replies with reply
+    if (reply[3:5] == ip_checksum(reply[5:])) and (BASE == int(reply[0:3])): #dont move window if not sent successfully
+      BASE += 1 #move window
+      pkt_list.pop(0) #take off packetlist bc successful
+      #send next packet 
+      if len(pkt_list) >= N: #first N is transfering atm so anything greater than that needs to be sent
+        pkt_list[N-1].sent_pkt(s)
+        #s.sendto(pkt_list[N-1].msg, (HOST, PORT)) # ^ hence N-1, sending the newest unsent
+        #pkt_list[N-1].time_sent = time.time() # setting time that packet N-1 was sent
+
+  except socket.error, msg: 
+    print 'Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+    sys.exit() 
+
+  if pkt_list:        # if pkt_list is not empty (still data being sent)
+    time_curr = time.time() # set time
+    if time_curr - pkt_list[0].time_sent >= TIMEOUT: # if TIMEOUT has been exceeded
+      s.sendto(pkt_list[0].msg, (HOST, PORT)) # idk how to do it for SR
+      pkt_list[0].time_sent = time.time()
 
 
-    except socket.error, msg:
-        print 'Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
-        sys.exit()
+
+
+

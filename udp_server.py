@@ -5,7 +5,9 @@ from time import sleep
 
 HOST = ''
 PORT = 2155
-PKT = 1
+PKT = 0
+
+#COUNT = 0
 
 try :
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -30,22 +32,20 @@ while 1:
   if not data: 
     break 
 
-  if data[3:5] != ip_checksum(data[5:]): 
+  if data[1:3] != ip_checksum(data[3:]): 
     continue
   
-  RCVPKT = int(data[0:3])
-  ACK = RCVPKT
-  #if not the packet we are waiting for re-ack previous packet
-  if RCVPKT != PKT: #not the right packet, send ACK of older packet
-    ACK = PKT - 1   #resend the previous PKT
-    print 'UNEXPECTED RCVPKT'
-  #packet we are waiting for, send next pkt
-  else: 
-    PKT += 1
-  reply = str(ACK).zfill(3) + data[3:]
+  ACK = data[0] 
+  reply = str(ACK) + data[3:]
   s.sendto(reply, addr)
+  if ACK != str(PKT): 
+    print 'DUPLICATE'
+  else: 
+    PKT = 0 if PKT else 1
   print 'Message[' + addr[0] + ':' + str(addr[1]) + '] - ' + data.strip()
 
+  #COUNT += 1
+  #if COUNT % 3 == 0:
+  #  sleep(5)
+
 s.close()
-
-

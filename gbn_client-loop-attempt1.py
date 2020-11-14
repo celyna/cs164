@@ -32,6 +32,7 @@ msgList.append("Hello World 9")
 msgList.append("Hello World 10")
 count = 0
 flag = 0
+resend = 0
 
 #initializing 
 pkt_list = list() #used as list of packets that havent been sent
@@ -50,14 +51,20 @@ except socket.error:
   sys.exit() 
 
 while 1: 
-  msg = raw_input('Enter message to send : ')
-  # msg = msgList[count]
-  # old_msg = msg 
-  # count+=1
-  checksum = ip_checksum(msg)                   #get checksum of message
-  # if msg[0:1] == 'C' and flag==0:
-  #   checksum = checksum + "c"
-  #   flag = 1
+  if resend:
+    msg = old_msg
+    resend = 0
+  else:
+    msg = raw_input('Enter message to send : jk hardcoded so it doesnt matter ')
+    msg = msgList[count]
+    old_msg = msg 
+    count+=1
+
+  try: # set string
+  	checksum = ip_checksum(msg)                   #get checksum of message
+  	if msg[0:1] == 'C' and flag==0:
+    	checksum = checksum + "c"
+    	flag = 1
   msg = str(PKT).zfill(3) + str(checksum) + msg #new message: 00PKT+CHKSM+MSG
   pkt_curr = pkt_struct(PKT, msg)               #set current: packet with packet number and msg
   pkt_list.append(pkt_curr) 
@@ -96,6 +103,6 @@ while 1:
   if pkt_list:        # if pkt_list is not empty (still data being sent)
     time_curr = time.time() # set time
     if time_curr - pkt_list[0].time_sent >= TIMEOUT: # if TIMEOUT has been exceeded
-      print('TIMEOUT occured.')
+      resend = 1
       s.sendto(pkt_list[0].msg, (HOST, PORT)) #go back and start sending from first unsent
       pkt_list[0].time_sent = time.time()

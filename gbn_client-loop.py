@@ -50,23 +50,23 @@ except socket.error:
   sys.exit() 
 
 while 1: 
-  msg = raw_input('Enter message to send : ')
-  # msg = msgList[count]
-  # old_msg = msg 
-  # count+=1
+  msg = raw_input('Enter message to send : jk hardcoded so it doesnt matter ')
+  msg = msgList[count]
+  old_msg = msg 
+  count+=1
   checksum = ip_checksum(msg)                   #get checksum of message
-  # if msg[0:1] == 'C' and flag==0:
-  #   checksum = checksum + "c"
-  #   flag = 1
+  if msg[0:1] == 'C' and flag==0:
+    checksum = checksum + "X"
+    flag = 1
   msg = str(PKT).zfill(3) + str(checksum) + msg #new message: 00PKT+CHKSM+MSG
-  pkt_curr = pkt_struct(PKT, msg)               #set current: packet with packet number and msg
+  pkt_curr = pkt_struct(PKT, msg)           #set current: packet with packet number and msg
   pkt_list.append(pkt_curr) 
   PKT += 1                                      #increment packet number
 
   
   try:                      #try to send packet
     if (pkt_curr.num < BASE + N):
-      pkt_curr.send_pkt(s)  #s.sendto(pkt_curr.msg, (HOST, PORT))
+      pkt_curr.send_pkt(s)  #s.sendto(msg, (HOST, PORT)) #gotta send the corrupted msg (not original)
                             #pkt_curr.time_sent = time.time()
     inputs = [s]
     outputs = [] 
@@ -96,6 +96,5 @@ while 1:
   if pkt_list:        # if pkt_list is not empty (still data being sent)
     time_curr = time.time() # set time
     if time_curr - pkt_list[0].time_sent >= TIMEOUT: # if TIMEOUT has been exceeded
-      print('TIMEOUT occured.')
       s.sendto(pkt_list[0].msg, (HOST, PORT)) #go back and start sending from first unsent
       pkt_list[0].time_sent = time.time()
